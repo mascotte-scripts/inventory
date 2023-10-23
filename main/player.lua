@@ -1,29 +1,19 @@
-local Functions,Players = {},{}
-if IsDuplicityVersion() then 
-    Functions.DBQuery = function(query,cb)
-        local data = exports.oxmysql:fetchSync(query)
-        if cb then
-            cb(data)
+local Functions, Players = {}
+
+Functions.GetPlayer = function(src)
+    local identifier = GetPlayerIdentifier(src)
+    if not Players[src] then 
+        Players[src] = {Functions={},inventory={}}
+        local self = Players[src]
+        
+        if kvpValue ~= "" then
+            self.inventory = json.decode(GetResourceKvpString('Users:%s:Character:Inventory'):format(identifier))
         end
-        return data
-    end
-    Functions.GetPlayer = function(src)
-        local identifier = GetPlayerIdentifier(src)
-        if not Players[src] then 
-            Players[src] = {Functions={},inventory={}}
-            local self = Players[src]
-            Functions.DBQuery("SELECT * FROM `player-inventory` WHERE `identifier`='"..identifier.."'",function(result)
-                if result and result[1] then
-                    for k,v in pairs(json.decode(result[1].inventory)) do 
-                        v.slot = tonumber(v.slot)
-                        self.inventory[v.slot] = v
-                    end 
-                end
-            end)
-            self.Functions.Set = function(items)
-                self.inventory = items 
-                return true
-            end
+
+        self.Functions.Set = function(items)
+            self.inventory = items 
+            return true
+        end
             self.Functions.CanCarryItem = function(item,amount)
                 local weight = 0
                 for k,v in pairs(self.inventory) do
@@ -148,29 +138,31 @@ if IsDuplicityVersion() then
                 return false
             end
             self.Functions.Save = function()
-                Functions.DBQuery("INSERT INTO `player-inventory` (`identifier`, `inventory`) VALUES('"..identifier.."','"..json.encode(self.inventory).."') ON DUPLICATE KEY UPDATE `inventory` = '"..json.encode(self.inventory).."' ")
+                SetResourceKvp('Users:%s:Character:Inventory', json.encode(self.inventory)):format(identifier)
                 return true
             end
         end
+    
         for k,v in pairs(Players[src].inventory) do
-            v.info.quality = GetQualityPercentage(v.name,v.info.startdate or os.time())
+            v.info.quality = GetQualityPercentage(v.name, v.info.startdate or os.time())
         end
+    
         return Players[src]
     end
-    RegisterCallback('AXFW:Inventory:GetPlayer',function(source,cb)
+    
+    RegisterCallback('AXFW:Inventory:GetPlayer', function(source, cb)
         cb(Functions.GetPlayer(source))
     end)
-else 
+    
     Functions.GetPlayer = function()
         local p = promise:new()
-        TriggerCallback('AXFW:Inventory:GetPlayer',function(data) p:resolve(data) end)
+        TriggerCallback('AXFW:Inventory:GetPlayer', function(data) p:resolve(data) end)
         local retval = Citizen.Await(p)
         return retval 
     end
-end
-
-GetInventoryFunctions = function()
-    return Functions
-end
-
-exports('GetInventoryFunctions',GetInventoryFunctions)
+    
+    GetInventoryFunctions = function()
+        return Functions
+    end
+    
+    exports('GetInventoryFunctions', GetInventoryFunctions)
